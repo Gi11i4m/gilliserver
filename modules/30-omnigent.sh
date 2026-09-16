@@ -1,15 +1,65 @@
 #!/bin/bash
-# Installs the Omnigent CLI (omnigent.ai). Running it as a service is the next step
-# and has no unit in config/ yet — see "What is not done yet" in the README.
+# Installs the Omnigent CLI (omnigent.ai) and runs it as gilliserver-omnigent.service.
 #
-# NOT YET VERIFIED ON HARDWARE. Omnigent wants Python 3.12+, Node 22 and tmux, and
-# a Pi 3 B has 1 GB of RAM and no swap by default — expect to need a swapfile, and
-# expect the first install to take the better part of an hour. Whoever runs this on
-# the real box first: fix what is wrong here and commit it, do not patch it live.
+# Verified on the real Pi 3 B: `uv tool install` takes about 40 seconds, the server
+# needs ~50 seconds before it serves its first request, and it idles around 270 MB
+# — comfortable in 1 GB, and it never touched swap. What the upstream install.sh
+# does is not reproduced here: it is interactive, it re-downloads on every run
+# (`uv tool install --force`), and it edits ~/.bashrc. This module does the same
+# work idempotently.
 set -euo pipefail
 
-if ! command -v omni >/dev/null; then
-	curl -fsSL https://omnigent.ai/install.sh | sh
-fi
+export DEBIAN_FRONTEND=noninteractive
 
-omni --version || echo "!! omni installed but not on PATH for this shell"
+UV=/root/.local/bin/uv
+export PATH="/root/.local/bin:$PATH"
+
+# uv is the whole install mechanism: it fetches its own CPython 3.12 (Debian 12
+# only has 3.11, and Omnigent needs 3.12+) and puts `omni` in ~/.local/bin.
+if [[ ! -x $UV ]]; then
+	echo "   installing uv"
+	curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
+[[ -x $UV ]] || { echo "!! uv did not install"; exit 1; }
+
+# No --force, unlike upstream's installer: this runs every hour, and --force means
+# re-downloading the wheel and rebuilding the venv sixty times a day. Upgrades are
+# a deliberate act — `uv tool upgrade omnigent` — not something a timer does behind
+# your back to a server that might be mid-session.
+if ! command -v omni >/dev/null; then
+	echo "   installing omnigent"
+	"$UV" tool install -q --python 3.12 omnigent
+fi
+command -v omni >/dev/null || { echo "!! omni installed but not on PATH"; exit 1; }
+
+# Node, tmux and bubblewrap are what the harnesses (`omni claude`, `omni codex`)
+# need; the server itself runs without them. Warn rather than fail — a missing one
+# should not stop the server from coming up.
+for tool in node tmux bwrap; do
+	command -v "$tool" >/dev/null || echo "!! $tool missing — \`omni claude\`/\`omni codex\` need it"
+done
+
+# apply.sh only reloads the systemd daemon; restarting what a module owns is the
+# module's job. Restart when the unit file itself changed, so a config change lands
+# without waiting for a reboot.
+#
+# The comparison is a stored hash rather than a timestamp: a marker under /run is
+# gone after a reboot, which made this restart a perfectly healthy server on every
+# single boot.
+unit=/etc/systemd/system/gilliserver-omnigent.service
+stamp=/var/lib/gilliserver/omnigent-unit.sha
+
+if [[ -f $unit ]]; then
+	mkdir -p "$(dirname "$stamp")"
+	now="$(sha256sum "$unit" | cut -d' ' -f1)"
+	was="$(cat "$stamp" 2>/dev/null || true)"
+
+	if ! systemctl is-active --quiet gilliserver-omnigent; then
+		echo "   starting gilliserver-omnigent"
+		systemctl start gilliserver-omnigent || echo "!! gilliserver-omnigent failed to start"
+	elif [[ $now != "$was" ]]; then
+		echo "   unit changed, restarting gilliserver-omnigent"
+		systemctl restart gilliserver-omnigent || echo "!! gilliserver-omnigent failed to restart"
+	fi
+	echo "$now" > "$stamp"
+fi

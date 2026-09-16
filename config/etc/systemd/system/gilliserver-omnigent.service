@@ -1,0 +1,44 @@
+[Unit]
+Description=Omnigent server
+Documentation=https://omnigent.ai
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# `omni` is a uv tool, so it lives in root's ~/.local/bin and is not on the PATH
+# systemd gives a unit. uv itself has to be on there too: the server shells out to
+# it to resolve the harnesses' Python environments.
+Environment=HOME=/root
+Environment=PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# No model API key here on purpose: this box only ever hosts the server and the web
+# UI. Agents run on the other machines connected to it, and the keys live there.
+#
+# The file is still read so that a secret added later — one the server itself needs
+# — lands without touching this unit. Which partition it is on depends on the image
+# (see scripts/apply.sh), so both are listed and both are optional.
+EnvironmentFile=-/boot/gilliserver.env
+EnvironmentFile=-/boot/firmware/gilliserver.env
+
+# Bare `omni server` runs in the foreground, which is what systemd wants; the
+# --background flag would fork away and leave systemd supervising nothing.
+#
+# Binding 0.0.0.0 rather than 127.0.0.1 is what makes it reachable over Tailscale,
+# and Omnigent switches itself into accounts mode (username + password) as soon as
+# it sees a non-local bind — so this is not an open door. Nothing is forwarded on
+# the router, so the LAN is the widest this ever gets.
+ExecStart=/root/.local/bin/omni server --host 0.0.0.0 --port 6767
+
+# ~50s to serve its first request on a Pi 3, most of it Python import time. Never
+# give up on it: this box is expected to come back on its own after a power cut.
+Restart=always
+RestartSec=30s
+
+# 1 GB of RAM, and the server idles around 270 MB. A harness that runs away should
+# hit this and be restarted rather than take ssh down with it.
+MemoryMax=600M
+
+[Install]
+WantedBy=multi-user.target
