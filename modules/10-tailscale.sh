@@ -15,7 +15,17 @@ command -v tailscale >/dev/null || { echo "!! tailscale still not installed"; ex
 systemctl is-enabled tailscaled &>/dev/null || systemctl enable --now tailscaled
 systemctl is-active tailscaled &>/dev/null || systemctl start tailscaled
 
-if tailscale status --json | grep -q '"BackendState": *"Running"'; then
+# At boot this module runs seconds after tailscaled starts, while the backend is
+# still "NoState"/"Starting" — and without this wait it concluded the box was not
+# on the tailnet and ran `tailscale up` again on every single boot. That is merely
+# wasteful with a reusable key and fatal with a single-use one.
+for _ in $(seq 30); do
+	state="$(tailscale status --json 2>/dev/null | sed -n 's/.*"BackendState": *"\([A-Za-z]*\)".*/\1/p' | head -1)"
+	[[ $state == Running || $state == NeedsLogin ]] && break
+	sleep 2
+done
+
+if [[ ${state:-} == Running ]]; then
 	echo "   tailscale up as $(tailscale status --self --peers=false 2>/dev/null | head -1)"
 	exit 0
 fi

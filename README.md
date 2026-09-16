@@ -26,9 +26,11 @@ make yourself is gone at the next apply — which is the point: a reflash has to
 
 Agents working on this repo: read [AGENTS.md](./AGENTS.md).
 
-**This repo is public, so no secret ever goes in it.** They live in `/boot/gilliserver.env` on the
-device. A `pre-commit` hook and a CI job (`scripts/check-secrets.sh`) refuse anything that looks
-like a credential. Hooks aren't cloned with a repo, so a fresh clone needs one command:
+**This repo is public, so no secret ever goes in it.** They live in `gilliserver.env` on the
+device's boot partition — `/boot/firmware/gilliserver.env` on current DietPi RPi images, `/boot/gilliserver.env`
+on older ones; `apply.sh` finds whichever is there. A `pre-commit` hook and a CI job
+(`scripts/check-secrets.sh`) refuse anything that looks like a credential. Hooks aren't cloned with
+a repo, so a fresh clone needs one command:
 
 ```bash
 scripts/install-hooks.sh
@@ -87,6 +89,34 @@ ssh root@gilliserver.local 'tail -f /root/.gilliserver-bootstrap.log'
 
 Then it is on the tailnet and pulling this repo by itself.
 
+### Onto a box that is already running
+
+This is the path that has actually been walked — gilliserver itself was a meeting-room kiosk first.
+Nothing is flashed; the repo takes the box over from the inside.
+
+```bash
+ssh root@<the-box>
+apt-get install -y git
+git clone https://github.com/Gi11i4m/gilliserver /opt/gilliserver
+/opt/gilliserver/scripts/apply.sh
+```
+
+Two things first boot would have done that this does not, so do them by hand once:
+
+```bash
+/boot/dietpi/func/change_hostname gilliserver
+/boot/dietpi/dietpi-autostart 7        # console, not a desktop
+```
+
+Then put `TAILSCALE_AUTHKEY` in `gilliserver.env` on the boot partition and apply again. Everything
+else — packages, DietPi software IDs, Tailscale itself — `modules/05-packages.sh` and
+`modules/10-tailscale.sh` install on their own, precisely so that a repurposed box and a freshly
+flashed one end up the same.
+
+Whatever the box ran before is your problem to remove, and it is worth being thorough: its own
+config management will happily fight this one. For the kiosk that meant its update-and-run unit, its
+cron jobs, its scripts in `/root`, and the Chromium autostart.
+
 ## Changing something
 
 Commit to `main` and wait up to an hour, or don't wait:
@@ -108,14 +138,39 @@ systemctl list-timers gilliserver-apply # when the next one is
 The log is a file rather than only `journalctl` because DietPi keeps `/var/log` in RAM — anything
 journald wrote about a run that ended in a reboot is gone before you can read it.
 
+## What is running
+
+Verified on the real Pi on 16 September 2026, on the box that used to be the `sauna` meeting-room
+kiosk — not on a fresh flash. Hostname, Tailscale, the hourly timer, the boot-time apply and the
+Omnigent server were all exercised end to end, including across reboots.
+
+- **Omnigent**, at `http://gilliserver:6767` over Tailscale, from
+  `gilliserver-omnigent.service`. It binds `0.0.0.0`, which makes Omnigent switch itself into
+  accounts mode, so the first person to open it creates the admin account. Roughly 50 seconds from
+  start to first request on this hardware, and it idles around 270 MB — the README used to warn you
+  would need a swapfile, and you do not: DietPi already ships 1 GB of swap and nothing touched it.
+  No model API key lives on the box; agents run on the machines connected to it.
+- **The apply loop.** `gilliserver-apply.service` at boot and `gilliserver-apply.timer` hourly,
+  both confirmed after a reboot. Two applies in a row are quiet.
+
 ## What is not done yet
 
-- **Omnigent as a service.** `modules/30-omnigent.sh` installs the CLI but nothing runs it yet, and
-  none of it has been tried on the actual hardware. Omnigent wants Python 3.12+, Node 22 and tmux;
-  a Pi 3 B has 1 GB of RAM and no swap by default, so expect to add a swapfile. Whoever gets it
-  working first: commit what you changed, don't leave it only on the box.
-- **Wake-on-LAN device list.** `config/etc/gilliserver/devices.conf` has a placeholder MAC for the
-  Steam Machine. Fill in the real one, and check that WoL is enabled in both its firmware and its
-  OS — most desktops switch it off on shutdown.
-- **Backups.** Nothing on the Pi is backed up; the assumption is that it holds no state worth
-  keeping. The first service that breaks that assumption needs a plan.
+- **Wake-on-LAN device list.** `config/etc/gilliserver/devices.conf` still has the placeholder MAC
+  for the Steam Machine, so `gilli-wake steam-machine` does nothing and has never been tested
+  against real hardware. `modules/20-wake-on-lan.sh` says so on every apply until it is filled in.
+  When you do: check WoL is enabled in the Steam Machine's firmware *and* its OS — most desktops
+  switch it off on shutdown.
+- **Tailscale node key expiry.** gilliserver joined with an untagged key, so it is owned by a user
+  account and its node key expires in a few months — at which point the box drops off the tailnet
+  with nobody there to re-authenticate it. Either disable key expiry for it in the admin console,
+  or re-join with a tagged key (a tag disables expiry, but needs an ACL entry, and Tailscale SSH to
+  a tagged node needs its own `ssh` rule).
+- **`setup/prepare-sdcard.sh` is unverified.** It looks for `dietpi.txt` on the card's FAT
+  partition. On the running box `dietpi.txt` is on ext4 at `/boot` and the FAT partition is
+  `/boot/firmware`, which a laptop cannot read — so this may not find anything on a current image.
+  gilliserver was installed from the running-box end instead, never from a card.
+- **A reflash has not been tried.** Everything here is now reproducible in principle, but the only
+  path actually walked is the one onto an already-running Debian.
+- **Backups.** Nothing on the Pi is backed up. Omnigent's SQLite database at
+  `/root/.omnigent/chat.db` is the first thing on the box that is real state, so the assumption
+  that there is nothing worth keeping no longer quite holds.
