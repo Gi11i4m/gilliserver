@@ -152,6 +152,16 @@ Omnigent server were all exercised end to end, including across reboots.
   No model API key lives on the box; agents run on the machines connected to it.
 - **The apply loop.** `gilliserver-apply.service` at boot and `gilliserver-apply.timer` hourly,
   both confirmed after a reboot. Two applies in a row are quiet.
+- **An exit node.** `modules/10-tailscale.sh` advertises `0.0.0.0/0` and `::/0`, and
+  `config/etc/sysctl.d/99-gilliserver-forwarding.conf` turns on the forwarding it needs. Advertising
+  is all the box can do by itself: a node is not selectable until someone approves it under
+  **Machines → gilliserver → … → Edit route settings → Use as exit node** in the Tailscale admin
+  console. Until then `tailscale status --json` reports `"ExitNodeOption": false` and it will not
+  appear in any client's exit-node list.
+
+  Do not expect much of it. A Pi 3 B reaches the internet over 100 Mb ethernet hung off USB, and
+  WireGuard on that CPU is the tighter limit of the two — this is an exit node for having a Belgian
+  IP from a hotel, not for saturating a link.
 
 ## What is not done yet
 
