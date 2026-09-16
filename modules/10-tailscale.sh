@@ -3,12 +3,17 @@
 # nothing is port-forwarded on the router.
 set -euo pipefail
 
-command -v tailscale >/dev/null || {
-	echo "tailscale is not installed — /boot/dietpi/dietpi-software install 58"
-	exit 1
-}
+# DietPi software ID 58. On a fresh flash dietpi.txt has already installed it; on a
+# box repurposed from something else it has not, and refusing to install it here
+# just meant the module failed on every run forever.
+if ! command -v tailscale >/dev/null; then
+	echo "   installing DietPi software 58 (Tailscale)"
+	/boot/dietpi/dietpi-software install 58
+fi
+command -v tailscale >/dev/null || { echo "!! tailscale still not installed"; exit 1; }
 
 systemctl is-enabled tailscaled &>/dev/null || systemctl enable --now tailscaled
+systemctl is-active tailscaled &>/dev/null || systemctl start tailscaled
 
 if tailscale status --json | grep -q '"BackendState": *"Running"'; then
 	echo "   tailscale up as $(tailscale status --self --peers=false 2>/dev/null | head -1)"
@@ -16,7 +21,7 @@ if tailscale status --json | grep -q '"BackendState": *"Running"'; then
 fi
 
 if [[ -z "${TAILSCALE_AUTHKEY:-}" ]]; then
-	echo "!! not on the tailnet and no TAILSCALE_AUTHKEY in /boot/gilliserver.env"
+	echo "!! not on the tailnet and no TAILSCALE_AUTHKEY in ${GILLISERVER_ENV:-/boot/gilliserver.env}"
 	echo "!! run \`tailscale up\` by hand over ssh, or drop a key in that file"
 	exit 1
 fi

@@ -23,8 +23,11 @@ AUTO_SETUP_AUTOSTART_TARGET_INDEX=7
 # -1 = OpenSSH Server instead of DietPi's Dropbear default.
 AUTO_SETUP_SSH_SERVER_INDEX=-1
 
+# Only applied on a first boot. modules/05-packages.sh makes the same list true on
+# every boot, because a box repurposed from something else never runs first-boot
+# setup at all — which is exactly how gilliserver started, as a meeting-room kiosk.
 AUTO_SETUP_INSTALL_SOFTWARE_ID=17 58 105 152
-AUTO_SETUP_APT_INSTALLS=curl ca-certificates etherwake wakeonlan tmux
+AUTO_SETUP_APT_INSTALLS=curl ca-certificates etherwake wakeonlan tmux bubblewrap
 
 # 0 = run /boot/Automation_Custom_Script.sh after the installs above are done.
 AUTO_SETUP_CUSTOM_SCRIPT_EXEC=0
