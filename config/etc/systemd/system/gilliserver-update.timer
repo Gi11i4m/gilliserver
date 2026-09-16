@@ -1,0 +1,17 @@
+[Unit]
+Description=Nightly gilliserver self-update
+
+[Timer]
+# 04:00, when nobody is using Omnigent — the upgrade restarts it, and a reboot
+# may follow. Randomised so the whole house's Pis don't hit the mirrors together.
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=30min
+
+# The box is not always on. Without this, a night spent powered off is an update
+# silently skipped, and the gaps add up to a box that is months behind.
+Persistent=true
+
+Unit=gilliserver-update.service
+
+[Install]
+WantedBy=timers.target

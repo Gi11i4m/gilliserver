@@ -63,3 +63,25 @@ if [[ -f $unit ]]; then
 	fi
 	echo "$now" > "$stamp"
 fi
+
+# Serve it over HTTPS on the tailnet.
+#
+# Omnigent speaks plain HTTP, so https://gilliserver.tail2b0581.ts.net:6767/ fails
+# the TLS handshake outright ("wrong version number") — the obvious URL to try, and
+# it looks like the box is down rather than like the wrong scheme. `tailscale
+# serve` terminates TLS with a real Let's Encrypt certificate for the MagicDNS name
+# and proxies to the local port, so the working URL is just
+# https://gilliserver.tail2b0581.ts.net/ with no port at all.
+#
+# The backend stays bound to 0.0.0.0 rather than 127.0.0.1 on purpose: Omnigent
+# only switches into accounts mode (username + password) when it sees a non-local
+# bind, and serve is reachable by everyone on the tailnet. Binding it back to
+# localhost would drop the login and hand the whole tailnet an unauthenticated
+# server. serve is tailnet-only — it is not `funnel`, nothing is public.
+if systemctl is-active --quiet tailscaled && tailscale status --json 2>/dev/null | grep -q '"BackendState": *"Running"'; then
+	if ! tailscale serve status 2>/dev/null | grep -q '127.0.0.1:6767'; then
+		echo "   serving omnigent over https on the tailnet"
+		tailscale serve --bg --https=443 http://127.0.0.1:6767 ||
+			echo "!! tailscale serve failed — is HTTPS enabled for the tailnet?"
+	fi
+fi

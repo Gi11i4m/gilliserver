@@ -1,0 +1,18 @@
+[Unit]
+Description=Update gilliserver itself — apt, DietPi, Omnigent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# systemd starts a unit with no HOME, and git and uv both want one. The same
+# omission is what made gilliserver-apply.service fail at every boot.
+Environment=HOME=/root
+Environment=PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+ExecStart=/opt/gilliserver/scripts/nightly-update.sh
+
+# apt on a Pi 3 with a big upgrade backlog is slow, and being killed halfway
+# through dpkg is how a box stops booting. Give it room rather than a deadline.
+TimeoutStartSec=2h
