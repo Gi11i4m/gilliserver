@@ -13,6 +13,11 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BRANCH="${GILLISERVER_BRANCH:-main}"
 LOG=/root/.gilliserver-apply.log
 
+# systemd gives a unit no HOME, and git aborts with "fatal: $HOME not set" the
+# moment it wants a global config — which killed the entire boot-time apply while
+# the hourly one from an ssh session kept working, so nothing looked wrong.
+export HOME="${HOME:-/root}"
+
 # git refuses to touch a repository owned by another user ("dubious ownership") and
 # every git command in this script then fails — including the pull, so the box goes
 # on applying stale config while looking like it succeeded. It happens the moment
@@ -87,6 +92,15 @@ fi
 # Units are enabled from the repo, not by hand, so a reflash brings them back.
 while IFS= read -r unit; do
 	systemctl is-enabled "$unit" &>/dev/null || { echo "   + enabling $unit"; systemctl enable "$unit"; }
+
+	# `enable` only writes the symlink — it does not start anything. A timer stayed
+	# dormant until the next reboot, so the whole point of the hourly re-apply was
+	# missing for however long the box happened to stay up. Services are left alone
+	# on purpose: apply.sh restarting a service mid-run is how you lose a box, and
+	# that is each module's job for the units it owns.
+	if [[ $unit == *.timer ]]; then
+		systemctl is-active "$unit" &>/dev/null || { echo "   + starting $unit"; systemctl start "$unit"; }
+	fi
 done < <(grep -rl '^\[Install\]' "$REPO_DIR/config/etc/systemd/system" | xargs -r -n1 basename)
 
 # ── 3. run modules ────────────────────────────────────────────────────────────

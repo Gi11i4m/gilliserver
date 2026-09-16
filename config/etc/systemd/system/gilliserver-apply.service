@@ -5,6 +5,12 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+
+# systemd starts a unit with no HOME. git needs one before it will read or write a
+# global config and otherwise dies with "fatal: $HOME not set", which failed this
+# service at every boot while the same script run by hand over ssh worked fine.
+Environment=HOME=/root
+
 ExecStart=/opt/gilliserver/scripts/apply.sh
 # The clock has to be right before git can talk TLS, and the network has to be up
 # before it can talk at all. Both are flaky on a Pi that just got power back.
