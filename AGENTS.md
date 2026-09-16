@@ -24,7 +24,7 @@ there is not.
 | A file with a fixed path on the Pi (unit, config, script)      | `config/<its absolute path without the leading />`    |
 | Anything that needs a decision: packages, services, joining a network | a module in `modules/`                        |
 | Something that must be true before first boot finishes          | `boot/dietpi.overrides` or `boot/Automation_Custom_Script.sh` |
-| A secret                                                        | `/boot/gilliserver.env` on the device, never the repo |
+| A secret                                                        | `/boot/gilliserver.env` on the device, never the repo — it is public |
 
 `config/` is a dumb path-for-path copy. Files land at their matching absolute path, systemd units
 with an `[Install]` section are enabled automatically, and `systemctl daemon-reload` runs when any
@@ -46,12 +46,30 @@ unit changed. Nothing in `config/` can run logic — that is what modules are fo
 
 ## Secrets
 
-Secrets live in `/boot/gilliserver.env` on the device — the FAT partition, so it can be filled in
-from a laptop with the SD card in hand, and it survives wiping `/opt`. `apply.sh` sources it and
-exports it, so modules just read `$TAILSCALE_AUTHKEY` and friends. Add new ones to
-`boot/gilliserver.env.example` (name and comment only, never a value).
+**This repository is public.** Anything committed here is public the second it is pushed, and
+rewriting history does not un-leak it — a key that lands in a commit is burned and has to be
+rotated. So:
 
-Nothing secret goes in this repo. It is on GitHub.
+- **Never write a secret value into a file in this repo.** Not in a comment, not in an example, not
+  "temporarily", not in a commit message, not in a script you are about to delete.
+- Secrets live in `/boot/gilliserver.env` **on the device** — the FAT partition, so it can be filled
+  in from a laptop with the SD card in hand, and it survives wiping `/opt`. `apply.sh` sources and
+  exports it, so modules just read `$TAILSCALE_AUTHKEY` and friends.
+- A new secret means adding its **name and a comment** to `boot/gilliserver.env.example`, and asking
+  the user to put the value on the device. You are never the one who types the value.
+- If you read a secret off the device while debugging, it stays out of files, out of commits and out
+  of anything you write down.
+
+`scripts/check-secrets.sh` enforces this from a `pre-commit` hook and again in CI. If it fires,
+**the answer is to take the secret out**, not to pass `--no-verify`. If it is genuinely a false
+positive, say so out loud to the user and let them decide.
+
+Git hooks are not cloned with a repo, so every fresh clone needs one command before the guard is
+live:
+
+```bash
+scripts/install-hooks.sh
+```
 
 ## Verifying
 

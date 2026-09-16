@@ -27,6 +27,8 @@ fi
 # made on the box itself — otherwise the pull throws it away.
 if [[ "${SKIP_PULL:-0}" != 1 ]]; then
 	echo "-> pulling $BRANCH"
+	# The repo is public, so this is normally unused — it is here so that making it
+	# private is a matter of dropping a token in /boot/gilliserver.env, nothing more.
 	if [[ -n "${GITHUB_TOKEN:-}" ]]; then
 		git -C "$REPO_DIR" config credential.helper '!f() { echo "username=x-access-token"; echo "password=${GITHUB_TOKEN}"; }; f'
 	fi

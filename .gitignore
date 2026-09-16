@@ -1,5 +1,17 @@
 .DS_Store
-*.local
-secrets.env
+
+# Secrets. This repo is public: the real versions of these live in
+# /boot/gilliserver.env on the device and nowhere else. See AGENTS.md.
+*.env
+!*.env.example
+gilliserver.env
+secrets*
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# WiFi credentials go straight onto the SD card, never through here.
 boot/dietpi-wifi.txt
-mtime-test-*/
+
+*.local

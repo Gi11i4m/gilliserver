@@ -26,6 +26,14 @@ make yourself is gone at the next apply — which is the point: a reflash has to
 
 Agents working on this repo: read [AGENTS.md](./AGENTS.md).
 
+**This repo is public, so no secret ever goes in it.** They live in `/boot/gilliserver.env` on the
+device. A `pre-commit` hook and a CI job (`scripts/check-secrets.sh`) refuse anything that looks
+like a credential. Hooks aren't cloned with a repo, so a fresh clone needs one command:
+
+```bash
+scripts/install-hooks.sh
+```
+
 ## How it works
 
 DietPi's own config-as-code is the boot partition: `dietpi.txt` drives the entire first boot
@@ -46,13 +54,13 @@ push to `main` lands within the hour without anyone touching the Pi.
 boot/                       goes on the SD card's FAT partition, before first boot
   dietpi.overrides            keys applied onto the card's stock dietpi.txt
   Automation_Custom_Script.sh first boot: install git, clone this repo, run apply.sh
-  gilliserver.env.example     secrets template — the filled-in copy is never committed
+  gilliserver.env.example     names of the secrets — the filled-in copy lives only on the SD card
 config/                     mirrors the filesystem: config/etc/foo → /etc/foo
   etc/systemd/system/         units (auto-enabled if they have an [Install] section)
   etc/gilliserver/            our own config, e.g. the wake-on-lan device list
   usr/local/bin/              commands, e.g. gilli-wake
 modules/                    one idempotent script per concern, run in filename order
-scripts/apply.sh            the deployment itself
+scripts/                    apply.sh (the deployment itself), check-secrets.sh, install-hooks.sh
 setup/                      scripts you run from your laptop, not on the Pi
 ```
 

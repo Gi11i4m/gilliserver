@@ -1,0 +1,4 @@
+#!/bin/sh
+# Installed by `git config core.hooksPath .githooks` — scripts/install-hooks.sh does
+# that, and apply.sh does not need it. See scripts/check-secrets.sh for the why.
+exec "$(git rev-parse --show-toplevel)/scripts/check-secrets.sh"
