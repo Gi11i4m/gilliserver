@@ -28,7 +28,16 @@ git config --global --get-all safe.directory | grep -qx "$REPO_DIR" ||
 
 # Log to a file, not only to journald: DietPi keeps /var/log in RAM, so anything
 # journald wrote about a run that ends in a reboot is gone before you can read it.
-exec > >(tee -a "$LOG") 2>&1
+#
+# Only tee when there is someone watching. Under systemd, `tee` from a process
+# substitution lives in the service's cgroup and is killed as soon as the main
+# process exits, so the end of an unattended run can be lost — which is exactly
+# the run you are reading the log to understand.
+if [[ -t 1 ]]; then
+	exec > >(tee -a "$LOG") 2>&1
+else
+	exec >> "$LOG" 2>&1
+fi
 echo "=== apply $(date -Is) ==="
 
 # Where the boot partition is mounted. Older DietPi images put the FAT partition

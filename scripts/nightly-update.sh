@@ -16,7 +16,17 @@ LOG=/root/.gilliserver-update.log
 # Same reason as apply.sh: DietPi keeps /var/log in RAM, so anything journald wrote
 # about a run that ended in a reboot — and this one can end in a reboot — is gone
 # before anyone can read it.
-exec > >(tee -a "$LOG") 2>&1
+#
+# Only tee when there is someone watching. Under systemd, `tee` from a process
+# substitution lives in the service's cgroup and gets killed the moment the main
+# process exits, which truncated the end of every unattended run — the first run of
+# this script logged its whole apt upgrade and then lost the line saying it had
+# finished. Appending straight to the file has no second process to lose.
+if [[ -t 1 ]]; then
+	exec > >(tee -a "$LOG") 2>&1
+else
+	exec >> "$LOG" 2>&1
+fi
 echo "=== update $(date -Is) ==="
 
 export DEBIAN_FRONTEND=noninteractive
@@ -77,8 +87,23 @@ if [[ ${#failed[@]} -gt 0 ]]; then
 	echo "!! ${#failed[@]} step(s) failed: ${failed[*]}"
 fi
 
+# /var/run/reboot-required is an Ubuntu/needrestart convention. Nothing on this box
+# writes it: Raspberry Pi's kernel packages do not, and needrestart is not
+# installed — so the first real run installed kernel 6.12.109, kept running
+# 6.12.96, and reported that no reboot was needed. Checked anyway, in case
+# needrestart ever arrives, but the kernel comparison is what actually fires here.
+newest_kernel="$(find /boot -maxdepth 1 -name 'vmlinuz-*' -printf '%f\n' 2>/dev/null |
+	sed 's/^vmlinuz-//' | sort -V | tail -1)"
+running_kernel="$(uname -r)"
+
 if [[ -f /var/run/reboot-required ]]; then
-	echo "=> reboot required, rebooting $(date -Is)"
+	reboot_reason="a package asked for it"
+elif [[ -n $newest_kernel && $newest_kernel != "$running_kernel" ]]; then
+	reboot_reason="kernel $running_kernel -> $newest_kernel"
+fi
+
+if [[ -n ${reboot_reason:-} ]]; then
+	echo "=> rebooting: $reboot_reason"
 	echo "=== update done $(date -Is) ==="
 	systemctl reboot
 	exit 0
