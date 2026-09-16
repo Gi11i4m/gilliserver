@@ -144,14 +144,33 @@ Verified on the real Pi on 16 September 2026, on the box that used to be the `sa
 kiosk — not on a fresh flash. Hostname, Tailscale, the hourly timer, the boot-time apply and the
 Omnigent server were all exercised end to end, including across reboots.
 
-- **Omnigent**, at `http://gilliserver:6767` over Tailscale, from
-  `gilliserver-omnigent.service`. It binds `0.0.0.0`, which makes Omnigent switch itself into
-  accounts mode, so the first person to open it creates the admin account. Roughly 50 seconds from
+- **Omnigent**, at **https://gilliserver.tail2b0581.ts.net/** — no port — from
+  `gilliserver-omnigent.service`, with `tailscale serve` terminating TLS in front of it.
+
+  `https://…:6767/` does *not* work and never will: Omnigent speaks plain HTTP, so a browser
+  pointed at that port fails the TLS handshake with `wrong version number` and looks like a box
+  that is down. Either use the URL above, or `http://` on 6767.
+
+  It binds `0.0.0.0`, which makes Omnigent switch itself into accounts mode, so the first person to
+  open it creates the admin account. That bind is the reason for the login — pointing it at
+  `127.0.0.1` and letting `serve` do the exposing would look tidier and would hand every node on
+  the tailnet an unauthenticated server. Roughly 50 seconds from
   start to first request on this hardware, and it idles around 270 MB — the README used to warn you
   would need a swapfile, and you do not: DietPi already ships 1 GB of swap and nothing touched it.
   No model API key lives on the box; agents run on the machines connected to it.
 - **The apply loop.** `gilliserver-apply.service` at boot and `gilliserver-apply.timer` hourly,
   both confirmed after a reboot. Two applies in a row are quiet.
+- **A nightly self-update**, `gilliserver-update.timer` at 04:00: `apt full-upgrade`,
+  `dietpi-update`, and an Omnigent upgrade that restarts the server only if the version moved.
+  Kept out of `apply.sh` on purpose — that runs hourly and must stay fast, and a config push should
+  not be able to trigger twenty minutes of apt and a reboot.
+
+  It reboots only when the running kernel is older than the newest one in `/boot`.
+  `/var/run/reboot-required` is checked too but nothing on this box writes it, so on its own it
+  would have meant kernel updates installing and never running. Verified: it upgraded
+  6.12.96 → 6.12.109 and rebooted into it.
+
+  `/root/.gilliserver-update.log` is what it did last night.
 - **An exit node.** `modules/10-tailscale.sh` advertises `0.0.0.0/0` and `::/0`, and
   `config/etc/sysctl.d/99-gilliserver-forwarding.conf` turns on the forwarding it needs. Advertising
   is all the box can do by itself: a node is not selectable until someone approves it under
