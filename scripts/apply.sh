@@ -13,13 +13,42 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BRANCH="${GILLISERVER_BRANCH:-main}"
 LOG=/root/.gilliserver-apply.log
 
+# git refuses to touch a repository owned by another user ("dubious ownership") and
+# every git command in this script then fails — including the pull, so the box goes
+# on applying stale config while looking like it succeeded. It happens the moment
+# anything writes /opt/gilliserver as a non-root uid, which `setup/apply-now.sh
+# --local` used to do. Only root runs this, and this path is ours.
+git config --global --get-all safe.directory | grep -qx "$REPO_DIR" ||
+	git config --global --add safe.directory "$REPO_DIR"
+
 # Log to a file, not only to journald: DietPi keeps /var/log in RAM, so anything
 # journald wrote about a run that ends in a reboot is gone before you can read it.
 exec > >(tee -a "$LOG") 2>&1
 echo "=== apply $(date -Is) ==="
 
-if [[ -f /boot/gilliserver.env ]]; then
-	set -a; source /boot/gilliserver.env; set +a
+# Where the boot partition is mounted. Older DietPi images put the FAT partition
+# at /boot; the Bookworm RPi images moved it to /boot/firmware and left /boot on
+# ext4. The secrets file has to sit on the FAT one — that is the only partition
+# you can write from a laptop with the SD card in hand.
+GILLISERVER_BOOT=/boot
+if [[ "$(findmnt -n -o FSTYPE --target /boot/firmware 2>/dev/null)" == vfat ]]; then
+	GILLISERVER_BOOT=/boot/firmware
+fi
+
+# An env file already sitting on the other one still wins, so a box set up before
+# this check — or one whose /boot *is* the FAT partition — keeps working.
+GILLISERVER_ENV="$GILLISERVER_BOOT/gilliserver.env"
+if [[ ! -f $GILLISERVER_ENV ]]; then
+	for candidate in /boot/firmware/gilliserver.env /boot/gilliserver.env; do
+		[[ -f $candidate ]] && { GILLISERVER_ENV=$candidate; break; }
+	done
+fi
+export GILLISERVER_BOOT GILLISERVER_ENV
+
+if [[ -f $GILLISERVER_ENV ]]; then
+	set -a; source "$GILLISERVER_ENV"; set +a
+else
+	echo "!! no $GILLISERVER_ENV — modules that need a secret will say so"
 fi
 
 # ── 1. pull ───────────────────────────────────────────────────────────────────

@@ -14,6 +14,11 @@ BOOT="${1:-}"
 if [[ -z $BOOT ]]; then
 	# DietPi's boot partition mounts under a couple of different names depending on
 	# the image and the OS doing the mounting.
+	# UNVERIFIED on a current image: on the running Pi the FAT partition is mounted
+	# at /boot/firmware and holds only the RPi firmware, while dietpi.txt sits on
+	# ext4 at /boot — which a laptop cannot mount. If this search comes up empty on
+	# a freshly flashed card, that is why, and the fix is to find out where DietPi
+	# puts dietpi.txt before first boot rather than to widen this list blindly.
 	for candidate in /Volumes/bootfs /Volumes/boot /Volumes/DIETPI /media/"$USER"/bootfs; do
 		[[ -f $candidate/dietpi.txt ]] && BOOT=$candidate && break
 	done
