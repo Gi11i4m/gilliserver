@@ -1,0 +1,15 @@
+[Unit]
+Description=Re-apply gilliserver configuration hourly
+
+# A push to main should land without anyone power-cycling the Pi, so the boot-time
+# run is backed up by this. Randomised so a burst of retries after a power cut
+# doesn't line up on the hour.
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=1h
+RandomizedDelaySec=5min
+Unit=gilliserver-apply.service
+
+[Install]
+WantedBy=timers.target

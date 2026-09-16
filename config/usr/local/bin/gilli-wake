@@ -1,0 +1,28 @@
+#!/bin/bash
+# Wake a device from /etc/gilliserver/devices.conf.
+#
+#   gilli-wake steam-machine
+#   gilli-wake --list
+set -euo pipefail
+
+CONF=/etc/gilliserver/devices.conf
+
+usage() { echo "usage: gilli-wake <device>|--list   (devices in $CONF)"; }
+
+[[ $# -eq 1 ]] || { usage; exit 2; }
+
+if [[ $1 == --list || $1 == -l ]]; then
+	grep -vE '^\s*(#|$)' "$CONF" | awk '{printf "%-20s %s\n", $1, $2}'
+	exit 0
+fi
+
+read -r name mac target < <(grep -vE '^\s*(#|$)' "$CONF" | awk -v n="$1" '$1==n') || true
+[[ -n "${mac:-}" ]] || { echo "unknown device: $1"; usage; exit 1; }
+
+# Three packets: a single one gets dropped often enough to be annoying, and the
+# magic packet is fire-and-forget — there is no ack to wait for.
+for _ in 1 2 3; do
+	wakeonlan ${target:+-i "$target"} "$mac"
+	sleep 1
+done
+echo "sent wake-on-lan to $name ($mac)"

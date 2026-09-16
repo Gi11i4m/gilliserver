@@ -1,0 +1,5 @@
+.DS_Store
+*.local
+secrets.env
+boot/dietpi-wifi.txt
+mtime-test-*/

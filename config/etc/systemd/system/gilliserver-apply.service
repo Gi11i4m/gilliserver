@@ -1,0 +1,16 @@
+[Unit]
+Description=Pull gilliserver configuration from GitHub and deploy it
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/gilliserver/scripts/apply.sh
+# The clock has to be right before git can talk TLS, and the network has to be up
+# before it can talk at all. Both are flaky on a Pi that just got power back.
+ExecStartPre=/bin/sh -c 'for i in $(seq 30); do [ "$(timedatectl show -p NTPSynchronized --value)" = yes ] && exit 0; sleep 2; done; exit 0'
+TimeoutStartSec=30min
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,38 @@
+# DietPi first-boot settings for gilliserver.
+#
+# These are key=value overrides applied onto the stock /boot/dietpi.txt of a freshly
+# flashed SD card by `setup/prepare-sdcard.sh`. We do not ship a whole dietpi.txt:
+# DietPi reads a lot more keys than we care about and a partial file loses the rest.
+#
+# Software IDs come from `dietpi-software list` (verified against DietPi master):
+#   17  Git            — needed to pull this repo
+#   58  Tailscale      — the network everything is reachable on
+#  105  OpenSSH Server — DietPi's default is Dropbear, which has no sftp/scp
+#  152  Avahi-Daemon   — makes `gilliserver.local` resolve on the LAN
+
+AUTO_SETUP_ACCEPT_LICENSE=1
+AUTO_SETUP_AUTOMATED=1
+AUTO_SETUP_NET_HOSTNAME=gilliserver
+AUTO_SETUP_LOCALE=en_GB.UTF-8
+AUTO_SETUP_KEYBOARD_LAYOUT=be
+AUTO_SETUP_TIMEZONE=Europe/Brussels
+
+# 7 = console, autologin as root. No desktop: this is a headless server.
+AUTO_SETUP_AUTOSTART_TARGET_INDEX=7
+
+# -1 = OpenSSH Server instead of DietPi's Dropbear default.
+AUTO_SETUP_SSH_SERVER_INDEX=-1
+
+AUTO_SETUP_INSTALL_SOFTWARE_ID=17 58 105 152
+AUTO_SETUP_APT_INSTALLS=curl ca-certificates etherwake wakeonlan tmux
+
+# 0 = run /boot/Automation_Custom_Script.sh after the installs above are done.
+AUTO_SETUP_CUSTOM_SCRIPT_EXEC=0
+
+# Keep the clock daemon running instead of syncing once at boot. Without this the
+# clock can stay stuck in the past, every TLS certificate looks "not yet valid",
+# and `git pull` fails with an x509 error while the box quietly runs old config.
+CONFIG_NTP_MODE=4
+
+# Survive power cuts without a human: do not wait at the boot menu.
+AUTO_SETUP_BOOT_WAIT_FOR_NETWORK=1
