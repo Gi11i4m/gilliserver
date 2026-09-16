@@ -15,3 +15,6 @@ id_ed25519*
 boot/dietpi-wifi.txt
 
 *.local
+
+# Machine-local Claude Code settings (sandbox config etc.) — not shared.
+.claude/settings.local.json
