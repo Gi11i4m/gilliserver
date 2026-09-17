@@ -13,6 +13,13 @@ Type=simple
 Environment=HOME=/root
 Environment=PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# Omnigent expires a login cookie 8 hours after it was issued and never slides that
+# expiry forward on use, so a session that worked all morning is simply gone after
+# lunch — that is the re-login, not a crash or a restart. A month is fine here: the
+# server is reachable on the tailnet only, which is already an authenticated
+# network, and this password guards nothing else on the box.
+Environment=OMNIGENT_ACCOUNTS_SESSION_TTL_HOURS=720
+
 # No model API key here on purpose: this box only ever hosts the server and the web
 # UI. Agents run on the other machines connected to it, and the keys live there.
 #
